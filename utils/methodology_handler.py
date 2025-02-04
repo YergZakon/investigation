@@ -1,7 +1,7 @@
 # utils/methodology_handler.py
 
 from typing import List
-from langchain_experimental.text_splitter import SemanticChunker
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -17,13 +17,19 @@ class MethodologyHandler:
         self.embeddings = OpenAIEmbeddings(api_key=api_key)
         self.vector_store = None
         
-        # Создаем семантический разделитель текста
-        # Используем градиентный метод для лучшего определения границ в юридических текстах
-        self.text_splitter = SemanticChunker(
-            self.embeddings,
-            breakpoint_threshold_type="gradient",
-            breakpoint_threshold_amount=95.0,  # Можно настроить для более/менее детального разделения
-            min_chunk_size=300  # Минимальный размер чанка в символах
+        # Создаем разделитель текста
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            length_function=len,
+            separators=[
+                "\n\n",  # Сначала разделяем по двойным переносам строк (параграфы)
+                "\n",    # Затем по одинарным переносам
+                ". ",    # Затем по точкам с пробелами (предложения)
+                ", ",    # По запятым
+                " ",     # По пробелам (слова)
+                ""       # И наконец, по символам, если ничего другого не осталось
+            ]
         )
 
     def process_methodology(self, methodology_text: str) -> int:
@@ -35,7 +41,7 @@ class MethodologyHandler:
             int: количество созданных документов
         """
         try:
-            # Создаём документы из текста методики с семантическим разделением
+            # Создаём документы из текста методики
             documents = self.text_splitter.create_documents([methodology_text])
             
             # Добавляем метаданные к каждому документу
