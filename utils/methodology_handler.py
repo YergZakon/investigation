@@ -14,7 +14,7 @@ class MethodologyHandler:
         Args:
             api_key (str): API ключ для OpenAI
         """
-        os.environ["OPENAI_API_KEY"] = api_key
+        os.environ["openai_api_key"] = api_key
         # Инициализируем embeddings с моделью text-embedding-3-small
         self.embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",

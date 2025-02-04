@@ -126,7 +126,7 @@ with st.sidebar:
     st.header("🔧 Настройки")
     
     # Используем API ключ из secrets
-    api_key = st.secrets["OPENAI_API_KEY"]
+    api_key = st.secrets["openai_api_key"]
     if init_openai(api_key):
         st.success("Все готово")
         
