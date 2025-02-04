@@ -73,14 +73,14 @@ def extract_facts(client, case_description: str) -> str:
         Ответ должен быть в виде списка пунктов.
         """
         messages = [
-            {"role": "system", "content": "Ты эксперт по анализу юридических документов."},
+            {"role": "system", "content": "Ты опытный следователь который умеет выделять факты, события, участников, места и доказательства"},
             {"role": "user", "content": prompt}
         ]
 
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=messages,
-            max_tokens=300,
+            max_tokens=500,
             temperature=0.3,
             timeout=20
         )
@@ -106,15 +106,15 @@ def create_investigation_plan(client, facts: str, methodology_handler=None) -> s
         Ответ предоставь в виде структурированного плана.
         """
         messages = [
-            {"role": "system", "content": "Ты опытный следователь, умеющий планировать расследования."},
+            {"role": "system", "content": "Ты опытный следователь, умеющий планировать расследование, использующий самые современные методики расследования"},
             {"role": "user", "content": prompt}
         ]
 
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=messages,
-            max_tokens=300,
-            temperature=0.3,
+            max_tokens=900,
+            temperature=0.5,
             timeout=20
         )
         return response.choices[0].message.content.strip()
@@ -128,7 +128,7 @@ with st.sidebar:
     # Используем API ключ из secrets
     api_key = st.secrets["OPENAI_API_KEY"]
     if init_openai(api_key):
-        st.success("API ключ успешно загружен")
+        st.success("Все готово")
         
     st.header("📚 Навигация")
     page = st.radio(
