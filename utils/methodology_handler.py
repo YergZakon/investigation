@@ -14,7 +14,12 @@ class MethodologyHandler:
         Args:
             api_key (str): API ключ для OpenAI
         """
-        self.embeddings = OpenAIEmbeddings(api_key=api_key)
+        os.environ["OPENAI_API_KEY"] = api_key
+        # Инициализируем embeddings с моделью text-embedding-3-small
+        self.embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=api_key
+        )
         self.vector_store = None
         
         # Создаем разделитель текста
