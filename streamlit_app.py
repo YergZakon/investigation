@@ -50,13 +50,21 @@ st.markdown("""
 
 # Создание необходимых директорий
 def create_directories():
-    Path("storage/methodologies").mkdir(parents=True, exist_ok=True)
-    Path("storage/results").mkdir(parents=True, exist_ok=True)
-    Path("storage/files").mkdir(parents=True, exist_ok=True)
+    try:
+        Path("storage/methodologies").mkdir(parents=True, exist_ok=True)
+        Path("storage/results").mkdir(parents=True, exist_ok=True)
+        Path("storage/files").mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        st.error(f"Ошибка при создании директорий: {str(e)}")
+        raise
 
 # Инициализация OpenAI клиента
 def init_openai(api_key):
     try:
+        if not api_key:
+            st.error("API ключ не может быть пустым")
+            return False
+        
         client = OpenAI(api_key=api_key)
         st.session_state.openai_client = client
         return True
@@ -67,6 +75,9 @@ def init_openai(api_key):
 # Извлечение фактов из описания
 def extract_facts(client, case_description: str) -> str:
     try:
+        if not case_description.strip():
+            return "Ошибка: Описание дела не может быть пустым"
+        
         prompt = f"""
         Проанализируй следующий текст фабулы дела и выдели ключевые факты (даты, события, участников, места, доказательства):
         {case_description}
@@ -91,6 +102,9 @@ def extract_facts(client, case_description: str) -> str:
 # Создание плана расследования
 def create_investigation_plan(client, facts: str, methodology_handler=None) -> str:
     try:
+        if not facts.strip():
+            return "Ошибка: Факты не могут быть пустыми"
+        
         # Получаем контекст из методики, если есть
         methodology_context = ""
         if methodology_handler:
@@ -126,9 +140,11 @@ with st.sidebar:
     st.header("🔧 Настройки")
     
     # Используем API ключ из secrets
-    api_key = st.secrets["openai_api_key"]
-    if init_openai(api_key):
-        st.success("Все готово")
+    api_key = st.secrets.get("openai_api_key")
+    if api_key and init_openai(api_key):
+        st.success("API ключ действителен")
+    else:
+        st.error("Неверный или отсутствующий API ключ OpenAI")
         
     st.header("📚 Навигация")
     page = st.radio(
@@ -151,32 +167,33 @@ else:
         
         if uploaded_file is not None:
             if st.button("Обработать методику"):
-                try:
-                    # Создаем директории
-                    create_directories()
+                with st.spinner("Обработка методики..."):
+                    try:
+                        # Создаем директории
+                        create_directories()
+                        
+                        # Сохраняем загруженный файл
+                        file_path = f"storage/methodologies/{uploaded_file.name}"
+                        with open(file_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        
+                        # Извлекаем текст
+                        methodology_text = extract_text_from_pdf(file_path)
+                        
+                        # Инициализируем обработчик методики
+                        methodology_handler = MethodologyHandler(api_key=api_key)
+                        chunks = methodology_handler.process_methodology(methodology_text)
+                        
+                        # Сохраняем индекс
+                        methodology_handler.save_index("storage/methodologies/index")
+                        
+                        # Сохраняем в состояние сессии
+                        st.session_state.methodology_handler = methodology_handler
+                        
+                        st.success(f"Методика успешно обработана! Создано {chunks} фрагментов.")
                     
-                    # Сохраняем загруженный файл
-                    file_path = f"storage/methodologies/{uploaded_file.name}"
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    
-                    # Извлекаем текст
-                    methodology_text = extract_text_from_pdf(file_path)
-                    
-                    # Инициализируем обработчик методики
-                    methodology_handler = MethodologyHandler(api_key=api_key)
-                    chunks = methodology_handler.process_methodology(methodology_text)
-                    
-                    # Сохраняем индекс
-                    methodology_handler.save_index("storage/methodologies/index")
-                    
-                    # Сохраняем в состояние сессии
-                    st.session_state.methodology_handler = methodology_handler
-                    
-                    st.success(f"Методика успешно обработана! Создано {chunks} фрагментов.")
-                
-                except Exception as e:
-                    st.error(f"Ошибка при обработке методики: {str(e)}")
+                    except Exception as e:
+                        st.error(f"Ошибка при обработке методики: {str(e)}")
 
     elif page == "Планирование расследования":
         st.header("📋 Планирование расследования")
@@ -197,44 +214,48 @@ else:
                 st.warning("Заполните все поля формы")
             else:
                 with st.spinner("Анализ дела и формирование плана..."):
-                    # Извлекаем факты
-                    facts = extract_facts(st.session_state.openai_client, case_description)
-                    
-                    # Формируем план
-                    plan = create_investigation_plan(
-                        st.session_state.openai_client,
-                        facts,
-                        st.session_state.methodology_handler
-                    )
-                    
-                    # Показываем результаты
-                    st.subheader("📝 Извлечённые факты")
-                    st.markdown(facts)
-                    
-                    st.subheader("📌 План расследования")
-                    st.markdown(plan)
-                    
-                    # Создаем результаты для сохранения
-                    results = {
-                        "case_number": case_number,
-                        "facts": facts,
-                        "plan": plan,
-                        "generated_at": datetime.now().isoformat()
-                    }
-                    
-                    # Сохраняем результаты
-                    results_path = f"storage/results/plan_{case_number}.json"
-                    with open(results_path, "w", encoding="utf-8") as f:
-                        json.dump(results, f, ensure_ascii=False, indent=2)
-                    
-                    # Кнопка для скачивания
-                    with open(results_path, "r", encoding="utf-8") as f:
-                        st.download_button(
-                            label="💾 Скачать результаты",
-                            data=f.read(),
-                            file_name=f"plan_{case_number}.json",
-                            mime="application/json"
+                    try:
+                        # Извлекаем факты
+                        facts = extract_facts(st.session_state.openai_client, case_description)
+                        
+                        # Формируем план
+                        plan = create_investigation_plan(
+                            st.session_state.openai_client,
+                            facts,
+                            st.session_state.methodology_handler
                         )
+                        
+                        # Показываем результаты
+                        st.subheader("📝 Извлечённые факты")
+                        st.markdown(facts)
+                        
+                        st.subheader("📌 План расследования")
+                        st.markdown(plan)
+                        
+                        # Создаем результаты для сохранения
+                        results = {
+                            "case_number": case_number,
+                            "facts": facts,
+                            "plan": plan,
+                            "generated_at": datetime.now().isoformat()
+                        }
+                        
+                        # Сохраняем результаты
+                        results_path = f"storage/results/plan_{case_number}.json"
+                        with open(results_path, "w", encoding="utf-8") as f:
+                            json.dump(results, f, ensure_ascii=False, indent=2)
+                        
+                        # Кнопка для скачивания
+                        with open(results_path, "r", encoding="utf-8") as f:
+                            st.download_button(
+                                label="💾 Скачать результаты",
+                                data=f.read(),
+                                file_name=f"plan_{case_number}.json",
+                                mime="application/json"
+                            )
+                    
+                    except Exception as e:
+                        st.error(f"Ошибка при формировании плана: {str(e)}")
 
 # Нижний колонтитул
 st.markdown("---")
